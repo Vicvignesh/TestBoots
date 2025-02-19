@@ -1,0 +1,491 @@
+Client Files
+---------------------------------
+installation setps:
+npx create-react-app bootsecomm
+npm install axios react-router-dom
+
+inside Client folder->App.jsx
+
+import { useEffect, useState, React } from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import axios from "axios";
+import RegistrationForm from './components/RegistrationForm';
+import Login from './components/Login';
+import Dashboard from './components/Dashboard';
+import ProtectedRoute from "./components/ProtectedRoute"; // Import the protected route
+import ForgotPassword from "./components/ForgotPassword";
+import ResetPassword from "./components/ResetPassword";
+
+
+function App() {
+
+
+  const [isAuthenticated, setIsAuthenticated] = useState(null);
+
+  useEffect(() => {
+    axios
+      .get("http://localhost:5000/api/auth/verify", { withCredentials: true })
+      .then(() => setIsAuthenticated(true))
+      .catch(() => setIsAuthenticated(false));
+  }, []);
+
+  if (isAuthenticated === null) return <p>Loading...</p>;
+   
+  return (
+    <Router>
+      <Routes>
+
+        <Route path="/" element={ <RegistrationForm />} />
+        <Route path="/login" element={ <Login />} />
+        <Route path="/dashboard" element={ <Dashboard /> } />
+        <Route path="/register" element={<RegistrationForm />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
+
+      
+
+        {/* Add a route for the root path '/' */}
+        {/*<Route path="/" element={<Login />} />
+        <Route path="/register" element={<RegistrationForm />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />*/}
+      
+      </Routes>
+    </Router>
+  );
+}
+
+export default App;
+
+
+---------------------------------------
+
+inside Client folder->create folder-> components->create file->RegistrationForm.jsx
+
+import  {React, useEffect, useState } from 'react';
+import axios from 'axios';
+import { useNavigate, Link } from 'react-router-dom'; // Import useNavigate for redirecting
+import './registrationForm.css';
+
+
+const RegistrationForm = () => {
+
+  const navigate = useNavigate(); // useNavigate hook for redirecting
+
+  useEffect(() => {
+    axios
+      .get("http://localhost:5000/api/auth/verify", { withCredentials: true })
+      .then(() => navigate("/dashboard")) // Redirect to dashboard if logged in
+      .catch(() => {}); // Do nothing if not logged in
+  }, [navigate]);
+ 
+  const [formData, setFormData] = useState({ name: '', email: '', password: '' });
+  const [message, setMessage] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [errors, setErrors] = useState({});
+  
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+
+    // Clear errors on input change
+    setErrors({ ...errors, [e.target.name]: '' });
+  };
+
+  // Email validation function
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    let validationErrors = {};
+
+    if (!formData.name) {
+      validationErrors.name = 'Name is required';
+    }
+
+    if (!formData.email) {
+      validationErrors.email = 'Email is required';
+    } else if (!validateEmail(formData.email)) {
+      validationErrors.email = 'Invalid email format';
+    }
+
+    if (!formData.password) {
+      validationErrors.password = 'Password is required';
+    } else if (formData.password.length < 6) {
+      validationErrors.password = 'Password must be at least 6 characters';
+    }
+
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+
+
+
+    try {
+      const res = await axios.post('http://localhost:5000/api/auth/register', formData);
+      setMessage(res.data.message);
+       setTimeout(() => {
+          navigate('/login');
+        }, 2000); // Redirect after 2 seconds for better UX
+      
+    } catch (err) {
+      const errorMessage = err.response?.data?.message;
+      setMessage(errorMessage);
+
+      if (errorMessage === 'Email already exists. Please go login.') {
+        // Redirect to login page if the user already exists
+        setTimeout(() => {
+          navigate('/login');
+        }, 2000); // Redirect after 2 seconds for better UX
+      }
+    }
+  };
+
+  return (
+    <div className="form-container">
+      <div className="form-wrapper">
+        <h2>Register</h2>
+        {message && <p>{message}</p>}
+        <form onSubmit={handleSubmit}>
+          <input type="text" name="name" placeholder="Name" onChange={handleChange} value={formData.name} require/>
+          {errors.name && <p style={{ color: 'red' }}>{errors.name}</p>}
+          <input type="email" name="email" placeholder="Email" value={formData.email} onChange={handleChange} />
+           {errors.email && <p style={{ color: 'red' }}>{errors.email}</p>}
+          <input
+            type={showPassword ? 'text' : 'password'}
+            name="password"
+            placeholder="Enter your password"
+            value={formData.password}
+            onChange={handleChange}
+            required
+          />
+          <button type="button" className="show_pass" onClick={() => setShowPassword(!showPassword)}>
+            {showPassword ? 'Hide' : 'Show'}
+          </button>
+          {errors.password && <p style={{ color: 'red' }}>{errors.password}</p>}
+          <button classNam="register_btn" type="submit">Register</button>
+        </form>
+        {message && <p className="message">{message}</p>}
+        <div className="login-link">I'm a member <Link to="/login">Login</Link></div>
+      </div>
+    </div>
+  );
+};
+
+export default RegistrationForm;
+
+
+-------------------------------------------------------------------
+inside Client folder->create folder-> components->create file->Login.jsx
+
+import { useEffect, useState, React } from "react";
+import axios from 'axios';
+import { useNavigate, Link } from 'react-router-dom';
+
+const Login = () => {
+  const navigate = useNavigate();
+   // Check if user is already logged in
+  useEffect(() => {
+    axios
+      .get("http://localhost:5000/api/auth/verify", { withCredentials: true })
+      .then(() => navigate("/dashboard")) // Redirect to dashboard if logged in
+      .catch(() => {}); // Do nothing if not logged in
+  }, [navigate]);
+
+  const [formData, setFormData] = useState({ email: '', password: '' });
+  const [message, setMessage] = useState('');
+  const [user, setUser] = useState(null);
+
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      console.log(formData);
+      await axios.post("http://localhost:5000/api/auth/login", formData, { withCredentials: true });
+          navigate('/dashboard');
+      
+
+    } catch (err) {
+      setMessage(err.response?.data?.message || "Login failed");
+    }
+  
+    /*try {
+      const response = await axios.post('http://localhost:5000/api/auth/login', formData);
+      setMessage(response.data.message);
+      setUser(response.data.user);
+      
+    } catch (error) {
+      setMessage(error.response?.data?.message || 'Login failed');
+    }*/
+  };
+
+  return (
+    <div className="form-container">
+      <div className="form-wrapper">
+      <h2>Login</h2>
+      {message && <p>{message}</p>}
+      {user ? <p>Welcome, {user.name}</p> : 
+        <form onSubmit={handleSubmit}>
+          <input type="email" name="email" placeholder="Email" value={formData.email} onChange={handleChange} required />
+          <input type="password" name="password" placeholder="Password" value={formData.password} onChange={handleChange} required />
+          <button type="submit">Login</button>
+        </form>
+      }
+       <div className="forgot-assword">Forgot Password<a href="/forgot-password">forgot password</a></div>
+      <div className="signup-link">Not a member? <a href="/register">Signup</a></div>
+    </div>
+    </div>
+  );
+};
+
+export default Login;
+
+
+-------------------------------------------------------------------
+inside Client folder->create folder-> components->create file->Dashboard.jsx
+
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
+
+const Dashboard = () => {
+   const navigate = useNavigate();
+
+  useEffect(() => {
+    axios.get("http://localhost:5000/api/auth/dashboard", { withCredentials: true })
+    .then((res) => setUser(res.data.user)).catch(() => navigate("/login"));
+  }, [navigate]);
+  const [user, setUser] = useState(null);
+ 
+
+  const handleLogout = async () => {
+    await axios.post("http://localhost:5000/api/auth/logout", {}, { withCredentials: true });
+    navigate("/login");
+  };
+
+  return (
+    <div>
+      <h2>Dashboard</h2>
+      {user ? (
+        <div>
+          <p>Welcome, {user.name} ({user.email})</p>
+          <button onClick={handleLogout}>Logout</button>
+        </div>
+      ) : (
+        <p>Loading...</p>
+      )}
+    </div>
+  );
+};
+
+export default Dashboard;
+
+-------------------------------------------------------------------------------------
+
+inside Client folder->create folder-> components->create file->ForgotPassword.jsx
+
+
+import { useState } from "react";
+import axios from "axios";
+import { useNavigate, Link } from 'react-router-dom';
+
+
+const ForgotPassword = () => {
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await axios.post("http://localhost:5000/api/auth/forgot-password", { email });
+      setMessage(res.data.message);
+    } catch (err) {
+      setMessage("Error: " + err.response.data.message);
+    }
+  };
+
+  return (
+    <div className="form-container">
+      <div className="form-wrapper">
+    <form onSubmit={handleSubmit}>
+      <h2>Forgot Password</h2>
+      <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter your email" required />
+      <button type="submit">Send Reset Link</button>
+      <div className="login-link">I'm a member <Link to="/login">Login</Link></div>
+      {message && <p>{message}</p>}
+    </form>
+    </div></div>
+  );
+};
+
+export default ForgotPassword;
+
+-----------------------------------------------------------------------------------------------
+
+inside Client folder->create folder-> components->create file->ResetPassword.jsx
+
+
+import { useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import axios from "axios";
+
+const ResetPassword = () => {
+  const { token } = useParams();
+  const navigate = useNavigate();
+  const [newPassword, setNewPassword] = useState("");
+  const [message, setMessage] = useState("");
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post(`http://localhost:5000/api/auth/reset-password/${token}`, { newPassword });
+      setMessage("Password has been reset. Redirecting to login...");
+      setTimeout(() => navigate("/login"), 3000);
+    } catch (err) {
+      setMessage("Error: " + err.response.data.message);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <h2>Reset Password</h2>
+      <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="New Password" required />
+      <button type="submit">Reset Password</button>
+      {message && <p>{message}</p>}
+    </form>
+  );
+};
+
+export default ResetPassword;
+
+
+
+
+
+
+------------------------------------------------------------------------------------
+inside Client folder->create folder-> components->create file->registrationForm.css
+
+
+/* General Styles */
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: url('https://source.unsplash.com/1600x900/?nature,water') no-repeat center center/cover;
+  background-size: cover;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Centering the form container */
+.form-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* Form wrapper with a glass effect */
+.form-wrapper {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 40px;
+  border-radius: 15px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  width: 100%;
+  max-width: 400px;
+}
+
+.form-wrapper h2 {
+  color: white;
+  margin-bottom: 20px;
+  font-size: 28px;
+}
+
+/* Input fields */
+.form-wrapper input {
+  width: 100%;
+  padding: 15px;
+  margin: 10px 0;
+  border: none;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.5);
+  outline: none;
+  font-size: 16px;
+  box-sizing: border-box;
+}
+
+/* Submit button */
+.form-wrapper button {
+  width: 100%;
+  padding: 15px;
+  background: #4caf50;
+  border: none;
+  color: white;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 18px;
+  transition: 0.3s ease;
+}
+
+.form-wrapper button:hover {
+  background: #45a049;
+}
+
+/* Message styling */
+.message {
+  color: black;
+  margin-top: 20px;
+  font-size: 16px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .form-wrapper {
+    max-width: 90%;
+    padding: 30px;
+  }
+
+  .form-wrapper h2 {
+    font-size: 24px;
+  }
+
+  .form-wrapper input,
+  .form-wrapper button {
+    font-size: 14px;
+    padding: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .form-wrapper {
+    max-width: 100%;
+    padding: 20px;
+  }
+
+  .form-wrapper h2 {
+    font-size: 22px;
+  }
+
+  .form-wrapper input,
+  .form-wrapper button {
+    font-size: 14px;
+    padding: 10px;
+  }
+}
+-----------------------------------------------------------
+
+
