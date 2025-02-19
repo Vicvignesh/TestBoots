@@ -1,2 +1,2 @@
 <?php 
-echo "cool first";
+echo "cool first and update";
